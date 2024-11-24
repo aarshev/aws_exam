@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import { AttributeType, Table, BillingMode, GlobalSecondaryIndexProps } from 'aws-cdk-lib/aws-dynamodb';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { S3EventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -16,6 +17,24 @@ export class AwsExamStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY
     })
 
+    const table = new Table(this, 'Table', {
+      partitionKey:{
+        name: 'id',
+        type: AttributeType.STRING
+      },
+      billingMode: BillingMode.PAY_PER_REQUEST
+    })
+
+    const fileName: GlobalSecondaryIndexProps = {
+      indexName: 'FileName',
+      partitionKey: {
+        name: 'FileNamePK',
+        type: AttributeType.STRING
+      }
+    }
+
+    table.addGlobalSecondaryIndex(fileName)
+
     const errorTopic = new Topic(this, 'ErrorTopic', {
       topicName: 'ErrorTopic'
     })
@@ -32,12 +51,13 @@ export class AwsExamStack extends cdk.Stack {
       entry: `${__dirname}/../src/populateFunction.ts`,
       functionName: 'PopulateFunction',
       environment: {
+        TABLE_NAME: table.tableName,
         TOPIC_ARN: errorTopic.topicArn
       }
     })
 
     errorTopic.grantPublish(populateFunction)
-    //errorTopic.grantReadWriteData(populateFunction)
+    table.grantReadWriteData(populateFunction)
 
     const s3PutEventSource = new S3EventSource(bucket, {
       events: [
