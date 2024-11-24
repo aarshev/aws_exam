@@ -20,7 +20,7 @@ export const handler = async (event: any) => {
                     S: extensionName
                 },
                 fileSize: {
-                    S: event.Records[0].s3.object.size.toString() + 'bytes'
+                    S: event.Records[0].s3.object.size.toString() + ' bytes'
                 },
                 dateAdded: {
                     S: new Date().toString()

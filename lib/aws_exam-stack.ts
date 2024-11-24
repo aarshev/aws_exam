@@ -1,7 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
-import { AttributeType, Table, BillingMode, GlobalSecondaryIndexProps } from 'aws-cdk-lib/aws-dynamodb';
-import { Runtime } from 'aws-cdk-lib/aws-lambda';
-import { S3EventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { AttributeType, Table, BillingMode, GlobalSecondaryIndexProps, StreamViewType } from 'aws-cdk-lib/aws-dynamodb';
+import { Runtime, StartingPosition } from 'aws-cdk-lib/aws-lambda';
+import { DynamoEventSource, S3EventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Bucket, EventType } from 'aws-cdk-lib/aws-s3';
 import { Subscription, SubscriptionProtocol, Topic } from 'aws-cdk-lib/aws-sns';
@@ -22,7 +22,8 @@ export class AwsExamStack extends cdk.Stack {
         name: 'id',
         type: AttributeType.STRING
       },
-      billingMode: BillingMode.PAY_PER_REQUEST
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      stream: StreamViewType.NEW_AND_OLD_IMAGES,
     })
 
     const fileName: GlobalSecondaryIndexProps = {
@@ -56,7 +57,18 @@ export class AwsExamStack extends cdk.Stack {
       }
     })
 
+    const notifyOnSuccess = new NodejsFunction(this, 'notifyOnSuccess', {
+      runtime: Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: `${__dirname}/../src/notifyOnSuccess.ts`,
+      functionName: 'NotifyOnSuccess',
+      environment: {
+        TOPIC_ARN: errorTopic.topicArn
+      }
+    })
+
     errorTopic.grantPublish(populateFunction)
+    errorTopic.grantPublish(notifyOnSuccess)
     table.grantReadWriteData(populateFunction)
 
     const s3PutEventSource = new S3EventSource(bucket, {
@@ -65,8 +77,10 @@ export class AwsExamStack extends cdk.Stack {
       ]
     });
 
-
-
     populateFunction.addEventSource(s3PutEventSource);
+
+    notifyOnSuccess.addEventSource(new DynamoEventSource(table, {
+      startingPosition: StartingPosition.LATEST,
+    }));
   }
 }
