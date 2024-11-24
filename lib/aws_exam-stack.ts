@@ -43,7 +43,7 @@ export class AwsExamStack extends cdk.Stack {
     new Subscription(this, 'ErrorSubscription', {
       topic: errorTopic,
       protocol: SubscriptionProtocol.EMAIL,
-      endpoint: 'hristo.zhelev@yahoo.com.'
+      endpoint: 'hristo.zhelev@yahoo.com'
     })
 
     const populateFunction = new NodejsFunction(this, 'populateFunction', {
